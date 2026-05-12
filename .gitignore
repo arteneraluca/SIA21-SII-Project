@@ -1,0 +1,3 @@
+# Ignore Maven/Gradle build output folders in all subprojects
+target/
+**/target/

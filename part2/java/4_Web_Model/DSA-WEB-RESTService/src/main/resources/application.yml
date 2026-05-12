@@ -1,0 +1,23 @@
+server:
+  port: 8088
+
+spring:
+  application:
+    name: DSA-WEB-RESTService
+  datasource:
+    url: ${SPARK_HIVE_JDBC_URL:jdbc:hive2://localhost:10000/sia21_p2}
+    driver-class-name: org.apache.hive.jdbc.HiveDriver
+    username: ${SPARK_HIVE_USER:}
+    password: ${SPARK_HIVE_PASSWORD:}
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 1
+      connection-timeout: 5000
+      initialization-fail-timeout: 0
+
+analytics:
+  default-limit: 20
+
+logging:
+  level:
+    org.web.analytics: INFO

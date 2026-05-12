@@ -1,0 +1,134 @@
+services:
+  oracle:
+    build:
+      context: ./docker/oracle
+    platform: linux/arm64
+    container_name: sia-oracle
+    hostname: oracle
+    restart: unless-stopped
+    environment:
+      ORACLE_PASSWORD: oracle
+    ports:
+      - "1521:1521"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+    volumes:
+      - sia21-oracle-data:/opt/oracle/oradata
+      - ./docker/oracle/init:/container-entrypoint-initdb.d:ro
+      - ../part1/1_Data_Sources/games_small.csv:/opt/oracle/sia-data/games_small.csv:ro
+      - ../part1/1_Data_Sources/themes_small_clean.csv:/opt/oracle/sia-data/themes_small_clean.csv:ro
+      - ../part1/1_Data_Sources/user_ratings_small.csv:/opt/oracle/sia-data/user_ratings_small.csv:ro
+
+  postgres:
+    build:
+      context: ./docker/postgres
+    container_name: sia21-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: sia21
+      POSTGRES_USER: sia
+      POSTGRES_PASSWORD: sia
+    ports:
+      - "55432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sia -d sia21"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - sia21-postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+
+  jdbc-service:
+    build:
+      context: ./java/2_Access_Model/DSA-SQL-JDBCService
+      dockerfile: ../../Dockerfile
+    container_name: sia-jdbc-service
+    depends_on:
+      oracle:
+        condition: service_healthy
+    environment:
+      - ORACLE_JDBC_URL=jdbc:oracle:thin:@oracle:1521/FREEPDB1
+      - ORACLE_USER=SIA_ORACLE
+      - ORACLE_PASSWORD=oracle
+    ports:
+      - "8090:8090"
+
+  jpa-service:
+    build:
+      context: ./java/2_Access_Model/DSA-SQL-JPAService
+      dockerfile: ../../Dockerfile
+    container_name: sia-jpa-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - POSTGRES_JDBC_URL=jdbc:postgresql://postgres:5432/sia21
+      - POSTGRES_USER=sia
+      - POSTGRES_PASSWORD=sia
+    ports:
+      - "8091:8091"
+
+  xls-service:
+    build:
+      context: ./java/2_Access_Model/DSA-DOC-XLSService
+      dockerfile: ../../Dockerfile
+    container_name: sia-xls-service
+    environment:
+      - SIA21_GAMES_CSV=/app/data/games_small.csv
+      - SIA21_THEMES_CSV=/app/data/themes_small_clean.csv
+    volumes:
+      - ../part1/1_Data_Sources/games_small.csv:/app/data/games_small.csv:ro
+      - ../part1/1_Data_Sources/themes_small_clean.csv:/app/data/themes_small_clean.csv:ro
+    ports:
+      - "8092:8092"
+
+  spark-service:
+    build:
+      context: ./java/3_Integration_Model/DSA-SparkSQL-Service
+      dockerfile: ../../Dockerfile
+    container_name: sia-spark-service
+    depends_on:
+      jdbc-service:
+        condition: service_started
+      jpa-service:
+        condition: service_started
+      xls-service:
+        condition: service_started
+    environment:
+      - SPARK_ACCESS_DOC_BASE_URL=http://xls-service:8092/DSA-DOC-XLSService
+      - SPARK_ACCESS_POSTGRES_BASE_URL=http://jpa-service:8091
+      - SPARK_ACCESS_ORACLE_BASE_URL=http://jdbc-service:8090
+      - "JAVA_TOOL_OPTIONS=--add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-UNNAMED --add-opens=java.base/java.lang.reflect=ALL-UNNAMED --add-opens=java.base/java.io=ALL-UNNAMED --add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.util.concurrent=ALL-UNNAMED --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED --add-opens=java.base/sun.nio.ch=ALL-UNNAMED --add-opens=java.base/sun.nio.cs=ALL-UNNAMED --add-opens=java.base/sun.security.action=ALL-UNNAMED --add-opens=java.base/sun.util.calendar=ALL-UNNAMED --add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED --add-exports=java.base/sun.nio.ch=ALL-UNNAMED"
+    ports:
+      - "8087:8087"
+      - "10000:10000"
+    volumes:
+      - ./sql/spark:/app/sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/10000' || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  web-service:
+    build:
+      context: ./java/4_Web_Model/DSA-WEB-RESTService
+      dockerfile: ../../Dockerfile
+    container_name: sia-web-service
+    depends_on:
+      spark-service:
+        condition: service_healthy
+    environment:
+      - SPARK_HIVE_JDBC_URL=jdbc:hive2://spark-service:10000/sia21_p2
+    ports:
+      - "8088:8088"
+
+volumes:
+  sia21-oracle-data:
+  sia21-postgres-data:

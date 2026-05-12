@@ -1,0 +1,15 @@
+server:
+  port: 8090
+
+spring:
+  application:
+    name: DSA-SQL-JDBCService
+  datasource:
+    url: ${ORACLE_JDBC_URL:jdbc:oracle:thin:@localhost:1521/FREEPDB1}
+    username: ${ORACLE_USER:system}
+    password: ${ORACLE_PASSWORD:oracle}
+    driver-class-name: oracle.jdbc.OracleDriver
+
+logging:
+  level:
+    org.datasource.oracle: INFO

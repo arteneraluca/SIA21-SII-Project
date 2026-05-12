@@ -1,0 +1,34 @@
+server:
+  port: 8087
+  servlet:
+    context-path: /DSA-SparkSQL-Service
+
+spark:
+  sql:
+    app-name: SIA21-P2-SparkSQL
+    master: local[*]
+    warehouse-dir: file:/tmp/sia21-spark-warehouse
+    metastore-url: jdbc:derby:;databaseName=/tmp/sia21-spark-metastore;create=true
+    database-name: sia21_p2
+    thrift:
+      enabled: true
+      host: 0.0.0.0
+      port: 10000
+    local-dir: /tmp/sia21-spark-local
+    ui-enabled: false
+    adaptive-enabled: true
+  access:
+    doc-base-url: http://localhost:8092/DSA-DOC-XLSService
+    postgres-base-url: http://localhost:8091
+    oracle-base-url: http://localhost:8090
+
+sparksql:
+  rest:
+    enabled: true
+  autorest:
+    mode: restricted
+
+logging:
+  level:
+    org.spark.service: INFO
+    org.apache.spark: WARN
