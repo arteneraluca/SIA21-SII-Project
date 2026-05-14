@@ -1,0 +1,7 @@
+{
+  "datasourceType": "REST_JSON",
+  "restDataServiceHttpURL": "http://localhost:8090/DSA-SQL-JDBCService/rest/ratings/UserRatingView",
+  "datasourceViewName": "USER_RATING_VIEW_DATA",
+  "CREATE_VIEW_Query": "    CREATE OR REPLACE VIEW USER_RATING_VIEW_DATA AS\n    WITH json_view AS (\n    SELECT from_json(json_raw.data,\n                     'ARRAY<STRUCT<bggId: BIGINT, rating: DECIMAL(3,1), username: STRING>>') array\n    FROM (SELECT java_method('org.spark.service.rest.QueryRESTDataService', 'getRESTDataDocument',\n        'http://localhost:8090/DSA-SQL-JDBCService/rest/ratings/UserRatingView')\n        as data) json_raw\n    )\n    select v.*\n    FROM json_view LATERAL VIEW explode(json_view.array) AS v\n",
+  "QUERY_VIEW_Query": "SELECT * FROM USER_RATING_VIEW_DATA"
+}
